@@ -22,7 +22,7 @@ func main(){
 	const metricsPath = "/metrics"
 	const resetPath = "/reset"
 	const adminPath = "/admin"
-	const validatePath = "/validate_chirp"
+	const chirpPath = "/chirps"
 
 	apiConfig := apiConfig{}
 
@@ -34,7 +34,7 @@ func main(){
 	mux.HandleFunc("GET " + apiPath + healthPath, healthCheckHandler)
 	mux.HandleFunc("GET " + adminPath + metricsPath, apiConfig.getMetrics)
 	mux.HandleFunc(apiPath + resetPath, apiConfig.resetMetrics)
-	mux.HandleFunc("POST " + apiPath + validatePath, chirpValidateHandler)
+	mux.HandleFunc("POST " + apiPath + chirpPath, chirpValidateHandler)
 
 	server := &http.Server{
 		Addr: ":" + port,
