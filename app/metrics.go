@@ -5,23 +5,22 @@ import (
 	"net/http"
 )
 
-
-type apiConfig struct{
+type apiConfig struct {
 	fileServerHits int
 }
 
-func (a *apiConfig) incrementMetrics(next http.Handler) http.Handler{
+func (a *apiConfig) incrementMetrics(next http.Handler) http.Handler {
 	return http.HandlerFunc(
-		func (w http.ResponseWriter, req *http.Request) {
+		func(w http.ResponseWriter, req *http.Request) {
 			a.fileServerHits++
-			next.ServeHTTP(w,req)
+			next.ServeHTTP(w, req)
 		})
 }
 
-func (a *apiConfig) getMetrics(w http.ResponseWriter, req *http.Request){
+func (a *apiConfig) getMetrics(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(200)
-	logText:=fmt.Sprintf(`
+	logText := fmt.Sprintf(`
 <html>
 
 <body>
@@ -33,7 +32,7 @@ func (a *apiConfig) getMetrics(w http.ResponseWriter, req *http.Request){
 	w.Write([]byte(logText))
 }
 
-func (a* apiConfig) resetMetrics(w http.ResponseWriter, req *http.Request){
+func (a *apiConfig) resetMetrics(w http.ResponseWriter, req *http.Request) {
 	a.fileServerHits = 0
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(200)
