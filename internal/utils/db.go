@@ -5,23 +5,50 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
+
+type DataBase interface {
+    ensureDB() error
+    loadDB() (DBStructure, error)
+    writeDB(DBStructure) error
+    CreateChirp(string) (Chirp, error)
+    GetChirps() ([]Chirp, error)
+}
+
+type User struct {
+	Id int `json:"id"`
+	Email string `json:"email"`
+	Password string `json:"password"`
+}
+
+
+type Chirp struct {
+	Id   int    `json:"id"`
+	Body string `json:"body"`
+}
+
+
 type DB struct {
-	path string
-	mux  *sync.RWMutex
+	Path string
+	Mux  *sync.RWMutex
 }
 
 type DBStructure struct {
 	Chirps map[string]Chirp `json:"chirps"`
+	Users map[string]User `json:"users"`
 }
+
 
 func NewDB(path string) (*DB, error) {
 	_, err := os.ReadFile(path)
 	if errors.Is(err,os.ErrNotExist) {
-		if writeErr := os.WriteFile(path, []byte(`{"chirps":{}}`), 0644); writeErr != nil {
+		if writeErr := os.WriteFile(path, []byte(`{"chirps":{},"users":{}}`), 0644); writeErr != nil {
 			return nil, writeErr
 		}
 	} else if err != nil {
@@ -29,18 +56,18 @@ func NewDB(path string) (*DB, error) {
 	}
 
 	return &DB{
-		path: path,
-		mux:  &sync.RWMutex{},
+		Path: path,
+		Mux:  &sync.RWMutex{},
 	}, nil
 
 }
 
 func (db *DB) ensureDB() error {
-	db.mux.Lock()
-	defer db.mux.Unlock()
-	_, err := os.ReadFile(db.path)
+	db.Mux.Lock()
+	defer db.Mux.Unlock()
+	_, err := os.ReadFile(db.Path)
 	if err == os.ErrNotExist {
-		if writeErr := os.WriteFile(db.path, []byte(`{"chirps":{}}`), 0644); writeErr!=nil{
+		if writeErr := os.WriteFile(db.Path, []byte(`{"chirps":{}}`), 0644); writeErr!=nil{
 			return writeErr
 		}
 	} else if err != nil {
@@ -52,10 +79,10 @@ func (db *DB) ensureDB() error {
 func (db *DB) loadDB() (DBStructure, error) {
 	db.ensureDB()
 
-	db.mux.RLock()
-	defer db.mux.RUnlock()
+	db.Mux.RLock()
+	defer db.Mux.RUnlock()
 
-	data, err := os.ReadFile(db.path)
+	data, err := os.ReadFile(db.Path)
 	if err != nil {
 		fmt.Println(1,err)
 		return DBStructure{}, err
@@ -79,14 +106,110 @@ func (db *DB) writeDB(dbstructure DBStructure) error {
 		return err
 	}
 
-	db.mux.Lock()
-	defer db.mux.Unlock()
+	db.Mux.Lock()
+	defer db.Mux.Unlock()
 
-	if err := os.WriteFile(db.path, jsonData, 0644); err != nil {
+	if err := os.WriteFile(db.Path, jsonData, 0644); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (db *DB) CreateUser(user User)(User, error){
+
+	users, err := db.loadDB()
+	if err!=nil{
+		return User{},err
+	}
+
+	max := 0 
+	for _,value := range users.Users{
+		if value.Id > max{
+			max = value.Id
+		}
+	}
+
+	for _,value := range users.Users{
+		if value.Email == user.Email{
+			return User{}, fmt.Errorf("User of email: %s exists already",user.Email)
+		}
+	}
+
+	count := max
+
+	newUser := User{
+		Id: count + 1,
+		Email: user.Email,
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+	if err!=nil{
+		return User{}, err
+	}
+
+	account := User{
+		Id: count + 1,
+		Email: user.Email,
+		Password: string(hashedPassword),
+	}
+
+	users.Users[fmt.Sprintf("%v",count + 1)] = account
+
+	if err := db.writeDB(users); err!=nil{
+		return User{}, err
+	}
+
+	return newUser,nil
+}
+
+func (db *DB) UpdateUser(id int, newEmail string, newPassword string) error{
+	users , err:= db.loadDB()
+	if err!=nil{
+		return err
+	}
+
+	var foundUser User
+
+	for _,value := range users.Users{
+		if value.Id == id{
+			foundUser = value
+		}
+
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword),bcrypt.DefaultCost)
+	if err!=nil{
+		return err
+	}
+
+	users.Users[strconv.Itoa(foundUser.Id)] = User{
+		Id: foundUser.Id,
+		Email: newEmail ,
+		Password: string(hashedPassword),
+	}
+
+	if err:= db.writeDB(users); err!=nil{
+		return err
+	}
+
+	return nil
+}
+
+func (db *DB) GetUsers() ([]User, error){
+
+	users, err := db.loadDB()
+	if err!=nil{
+		return []User{},err
+	}
+
+	var userArray []User
+	for _,value := range users.Users{
+		userArray = append(userArray, value)
+	}
+
+	return userArray,nil
+
 }
 
 func (db *DB) CreateChirp(body string) (Chirp, error) {
@@ -130,4 +253,19 @@ func (db *DB) GetChirps() ([]Chirp, error) {
 		chirpArray = append(chirpArray, value)
 	}
 	return chirpArray, nil
+}
+
+func (db *DB) GetChirp(id string) (Chirp, error){
+	chirps, err := db.loadDB()
+	if err!=nil{
+		return Chirp{}, err
+	}
+
+	chirp,ok := chirps.Chirps[id]
+	if !ok{
+		return Chirp{},fmt.Errorf("Chirp with id:%s does not exist",id)
+	}
+
+	return chirp, nil
+
 }

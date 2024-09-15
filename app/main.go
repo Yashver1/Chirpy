@@ -1,10 +1,13 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/Yashver1/chirpy/internal/utils"
+	"github.com/joho/godotenv"
 )
 
 func healthCheckHandler(w http.ResponseWriter, req *http.Request) {
@@ -17,6 +20,8 @@ func healthCheckHandler(w http.ResponseWriter, req *http.Request) {
 
 func main() {
 
+	godotenv.Load()
+
 	const port = "8080"
 	const healthPath = "/healthz"
 	const apiPath = "/api"
@@ -24,12 +29,28 @@ func main() {
 	const resetPath = "/reset"
 	const adminPath = "/admin"
 	const chirpPath = "/chirps"
+	const loginPath = "/login"
 	const dbPath = "../storage/database.json"
 
-	apiConfig := apiConfig{}
+	dbg := flag.Bool("debug", false, "Enable debug mode")
+	flag.Parse()
+
+	if *dbg {
+
+		os.Remove(dbPath)
+
+	}
+
 	DB, err := utils.NewDB(dbPath)
 	if err != nil {
 		log.Fatal(err)
+	}
+
+
+	apiConfig := apiConfig{
+		FileServerHits: 0,
+		Database: DB,
+		JwtSecret: os.Getenv("JWT_SECRET"),
 	}
 
 	mux := http.NewServeMux()
@@ -40,8 +61,12 @@ func main() {
 	mux.HandleFunc("GET "+apiPath+healthPath, healthCheckHandler)
 	mux.HandleFunc("GET "+adminPath+metricsPath, apiConfig.getMetrics)
 	mux.HandleFunc(apiPath+resetPath, apiConfig.resetMetrics)
-	mux.Handle("POST "+apiPath+chirpPath, utils.CreateChirpHandler(DB))
-	mux.Handle("GET "+apiPath+chirpPath, utils.GetAllChirpsHandler(DB))
+	mux.Handle("POST "+apiPath+chirpPath, apiConfig.CreateChirpHandler())
+	mux.Handle("GET "+apiPath+chirpPath, apiConfig.GetAllChirpsHandler())
+	mux.Handle("GET "+apiPath+chirpPath+"/{chirpID}", apiConfig.GetChirpHandler())
+	mux.Handle("POST "+apiPath+"/users", apiConfig.CreateUserHandler())
+	mux.Handle("POST "+apiPath+loginPath, apiConfig.JWTLoginHandler())
+	mux.HandleFunc("PUT "+apiPath + "/users", apiConfig.UpdateUserHandler)
 
 	server := &http.Server{
 		Addr:    ":" + port,
