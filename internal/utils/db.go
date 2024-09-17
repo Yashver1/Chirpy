@@ -33,6 +33,11 @@ type Chirp struct {
 	Body string `json:"body"`
 }
 
+type Token struct {
+	Token string `json:"token"`
+	Expires int `json:"expires"`
+	UserId int `json:"userid"`
+}
 
 type DB struct {
 	Path string
@@ -42,13 +47,14 @@ type DB struct {
 type DBStructure struct {
 	Chirps map[string]Chirp `json:"chirps"`
 	Users map[string]User `json:"users"`
+	Tokens map[string]Token `json:"tokens"`
 }
 
 
 func NewDB(path string) (*DB, error) {
 	_, err := os.ReadFile(path)
 	if errors.Is(err,os.ErrNotExist) {
-		if writeErr := os.WriteFile(path, []byte(`{"chirps":{},"users":{}}`), 0644); writeErr != nil {
+		if writeErr := os.WriteFile(path, []byte(`{"chirps":{},"users":{},"tokens":{}}`), 0644); writeErr != nil {
 			return nil, writeErr
 		}
 	} else if err != nil {
@@ -67,7 +73,7 @@ func (db *DB) ensureDB() error {
 	defer db.Mux.Unlock()
 	_, err := os.ReadFile(db.Path)
 	if err == os.ErrNotExist {
-		if writeErr := os.WriteFile(db.Path, []byte(`{"chirps":{}}`), 0644); writeErr!=nil{
+		if writeErr := os.WriteFile(db.Path, []byte(`{"chirps":{},"users":{},"tokens":{}}`), 0644); writeErr!=nil{
 			return writeErr
 		}
 	} else if err != nil {
@@ -100,7 +106,6 @@ func (db *DB) loadDB() (DBStructure, error) {
 
 func (db *DB) writeDB(dbstructure DBStructure) error {
 	db.ensureDB()
-
 	jsonData, err := json.Marshal(dbstructure)
 	if err != nil {
 		return err
@@ -162,6 +167,60 @@ func (db *DB) CreateUser(user User)(User, error){
 
 	return newUser,nil
 }
+
+func (db *DB) CreateToken(userId int, token string, expiry int) error{
+	tokens, err := db.loadDB()
+	if err!=nil{
+		return err
+	}
+
+	refreshToken := Token{
+		Token: token,
+		Expires: expiry,
+		UserId: userId,
+	}
+
+
+	tokens.Tokens[refreshToken.Token] = refreshToken 
+
+	if err:= db.writeDB(tokens); err!=nil{
+		return err
+	}
+
+	return nil
+
+}
+
+func (db *DB) GetToken(refreshtoken string) (int, error){
+	tokens, err := db.loadDB()
+	if err!=nil{
+		return 0, err
+	}
+
+	for _, value := range tokens.Tokens{
+		if value.Token == refreshtoken{
+			return value.UserId,nil
+		}
+	}
+
+	return 0, fmt.Errorf("Token not found")
+
+}
+
+func (db *DB) DeleteToken(refreshtoken string) error{
+	tokens, err := db.loadDB()
+	if err!=nil{
+		return err
+	}
+
+	delete(tokens.Tokens, refreshtoken)
+	if err:= db.writeDB(tokens); err!=nil{
+		return err
+	}
+	return nil
+}
+
+
 
 func (db *DB) UpdateUser(id int, newEmail string, newPassword string) error{
 	users , err:= db.loadDB()

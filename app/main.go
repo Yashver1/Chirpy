@@ -67,6 +67,8 @@ func main() {
 	mux.Handle("POST "+apiPath+"/users", apiConfig.CreateUserHandler())
 	mux.Handle("POST "+apiPath+loginPath, apiConfig.JWTLoginHandler())
 	mux.HandleFunc("PUT "+apiPath + "/users", apiConfig.UpdateUserHandler)
+	mux.Handle("POST " + apiPath + "/revoke", apiConfig.DeleteRefreshTokenHandler())
+	mux.Handle("POST " + apiPath + "/refresh", apiConfig.RefreshTokenHandler())
 
 	server := &http.Server{
 		Addr:    ":" + port,
