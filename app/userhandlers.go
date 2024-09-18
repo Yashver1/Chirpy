@@ -16,6 +16,7 @@ func (a *apiConfig) CreateUserHandler() http.Handler {
 		type Response struct {
 			Id    int    `json:"id"`
 			Email string `json:"email"`
+			IsChirpyRed bool `json:"is_chirpy_red"`
 		}
 
 		var user utils.User
@@ -36,6 +37,7 @@ func (a *apiConfig) CreateUserHandler() http.Handler {
 		response := Response{
 			Id:    newUser.Id,
 			Email: newUser.Email,
+			IsChirpyRed: newUser.IsChirpyRed,
 		}
 
 		utils.RespondWithJSON(w, 201, response)

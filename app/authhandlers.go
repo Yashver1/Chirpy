@@ -158,6 +158,7 @@ func (a *apiConfig) JWTLoginHandler() http.Handler {
 			Email string `json:"email"`
 			Token string `json:"token"`
 			RefreshToken string `json:"refresh_token"`
+			IsChirpyRed bool `json:"is_chirpy_red"`
 		}
 
 		decoder := json.NewDecoder(r.Body)
@@ -168,6 +169,11 @@ func (a *apiConfig) JWTLoginHandler() http.Handler {
 
 
 		users, err := a.Database.GetUsers()
+		if err!=nil{
+			utils.RespondWithErr(w,500,"Error fetching users")
+			return
+		}
+
 		var foundUser utils.User
 
 		for _,value := range users{
@@ -223,6 +229,7 @@ func (a *apiConfig) JWTLoginHandler() http.Handler {
 			Email: foundUser.Email,
 			Token: signedJWT,
 			RefreshToken: refreshTokenString,
+			IsChirpyRed: foundUser.IsChirpyRed,
 		}
 
 		utils.RespondWithJSON(w,200,response)

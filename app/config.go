@@ -11,6 +11,7 @@ type apiConfig struct {
 	FileServerHits int
 	Database  *utils.DB
 	JwtSecret string
+	PolkaKey string
 }
 
 func (a *apiConfig) incrementMetrics(next http.Handler) http.Handler {

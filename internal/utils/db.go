@@ -26,6 +26,7 @@ type User struct {
 	Id int `json:"id"`
 	Email string `json:"email"`
 	Password string `json:"password"`
+	IsChirpyRed bool `json:"is_chirpy_red"`
 }
 
 
@@ -123,52 +124,7 @@ func (db *DB) writeDB(dbstructure DBStructure) error {
 	return nil
 }
 
-func (db *DB) CreateUser(user User)(User, error){
 
-	users, err := db.loadDB()
-	if err!=nil{
-		return User{},err
-	}
-
-	max := 0 
-	for _,value := range users.Users{
-		if value.Id > max{
-			max = value.Id
-		}
-	}
-
-	for _,value := range users.Users{
-		if value.Email == user.Email{
-			return User{}, fmt.Errorf("User of email: %s exists already",user.Email)
-		}
-	}
-
-	count := max
-
-	newUser := User{
-		Id: count + 1,
-		Email: user.Email,
-	}
-
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
-	if err!=nil{
-		return User{}, err
-	}
-
-	account := User{
-		Id: count + 1,
-		Email: user.Email,
-		Password: string(hashedPassword),
-	}
-
-	users.Users[fmt.Sprintf("%v",count + 1)] = account
-
-	if err := db.writeDB(users); err!=nil{
-		return User{}, err
-	}
-
-	return newUser,nil
-}
 
 func (db *DB) CreateToken(userId int, token string) error{
 	tokens, err := db.loadDB()
@@ -223,6 +179,56 @@ func (db *DB) DeleteToken(refreshtoken string) error{
 }
 
 
+func (db *DB) CreateUser(user User)(User, error){
+
+	users, err := db.loadDB()
+	if err!=nil{
+		return User{},err
+	}
+
+	max := 0 
+	for _,value := range users.Users{
+		if value.Id > max{
+			max = value.Id
+		}
+	}
+
+	for _,value := range users.Users{
+		if value.Email == user.Email{
+			return User{}, fmt.Errorf("User of email: %s exists already",user.Email)
+		}
+	}
+
+	count := max
+
+	newUser := User{
+		Id: count + 1,
+		Email: user.Email,
+		IsChirpyRed: false,
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+	if err!=nil{
+		return User{}, err
+	}
+
+	account := User{
+		Id: count + 1,
+		Email: user.Email,
+		Password: string(hashedPassword),
+		IsChirpyRed: false,
+	}
+
+	users.Users[fmt.Sprintf("%v",count + 1)] = account
+
+	if err := db.writeDB(users); err!=nil{
+		return User{}, err
+	}
+
+	return newUser,nil
+}
+
+
 
 func (db *DB) UpdateUser(id int, newEmail string, newPassword string) error{
 	users , err:= db.loadDB()
@@ -248,6 +254,7 @@ func (db *DB) UpdateUser(id int, newEmail string, newPassword string) error{
 		Id: foundUser.Id,
 		Email: newEmail ,
 		Password: string(hashedPassword),
+		IsChirpyRed: foundUser.IsChirpyRed,
 	}
 
 	if err:= db.writeDB(users); err!=nil{
@@ -270,6 +277,40 @@ func (db *DB) GetUsers() ([]User, error){
 	}
 
 	return userArray,nil
+
+}
+
+
+func (db *DB) GetUser(id int) (User, error){
+	users, err := db.loadDB()
+	if err!=nil{
+		return User{}, err
+	}
+
+	for _,value := range users.Users{
+		if value.Id == id{
+			return value, nil
+		}
+	}
+
+	return User{}, fmt.Errorf("User not found")
+}
+
+func (db *DB) UpgradeUser(id int) error{
+	users, err := db.loadDB()
+	if err!=nil{
+		return err
+	}
+
+	user := users.Users[strconv.Itoa(id)]
+	user.IsChirpyRed = true
+	users.Users[strconv.Itoa(id)] = user
+
+	if err := db.writeDB(users); err!=nil{
+		return err
+	}
+
+	return nil
 
 }
 

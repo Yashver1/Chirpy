@@ -51,6 +51,7 @@ func main() {
 		FileServerHits: 0,
 		Database: DB,
 		JwtSecret: os.Getenv("JWT_SECRET"),
+		PolkaKey: os.Getenv("POLKA_KEY"),
 	}
 
 	mux := http.NewServeMux()
@@ -70,6 +71,7 @@ func main() {
 	mux.Handle("POST " + apiPath + "/revoke", apiConfig.DeleteRefreshTokenHandler())
 	mux.Handle("POST " + apiPath + "/refresh", apiConfig.RefreshTokenHandler())
 	mux.Handle("DELETE "+apiPath+chirpPath+"/{chirpID}", apiConfig.DeleteChirpHandler())
+	mux.Handle("POST " + apiPath + "/polka/webhooks", apiConfig.WebhookHandler())
 
 	server := &http.Server{
 		Addr:    ":" + port,
