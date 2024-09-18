@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -31,11 +32,12 @@ type User struct {
 type Chirp struct {
 	Id   int    `json:"id"`
 	Body string `json:"body"`
+	UserId int `json:"author_id"`
 }
 
 type Token struct {
 	Token string `json:"token"`
-	Expires int `json:"expires"`
+	Expires time.Time `json:"expires"`
 	UserId int `json:"userid"`
 }
 
@@ -168,7 +170,7 @@ func (db *DB) CreateUser(user User)(User, error){
 	return newUser,nil
 }
 
-func (db *DB) CreateToken(userId int, token string, expiry int) error{
+func (db *DB) CreateToken(userId int, token string) error{
 	tokens, err := db.loadDB()
 	if err!=nil{
 		return err
@@ -176,7 +178,7 @@ func (db *DB) CreateToken(userId int, token string, expiry int) error{
 
 	refreshToken := Token{
 		Token: token,
-		Expires: expiry,
+		Expires: time.Now().Add(time.Hour * 24 * 60),
 		UserId: userId,
 	}
 
@@ -198,7 +200,7 @@ func (db *DB) GetToken(refreshtoken string) (int, error){
 	}
 
 	for _, value := range tokens.Tokens{
-		if value.Token == refreshtoken{
+		if value.Token == refreshtoken && value.Expires.After(time.Now()){
 			return value.UserId,nil
 		}
 	}
@@ -271,7 +273,7 @@ func (db *DB) GetUsers() ([]User, error){
 
 }
 
-func (db *DB) CreateChirp(body string) (Chirp, error) {
+func (db *DB) CreateChirp(body string, userId int) (Chirp, error) {
 	chirps, err := db.loadDB()
 	if err != nil {
 		return Chirp{}, err
@@ -289,6 +291,7 @@ func (db *DB) CreateChirp(body string) (Chirp, error) {
 	newChirp := Chirp{
 		Id:   count + 1,
 		Body: body,
+		UserId: userId,
 	}
 
 	chirps.Chirps[strings.ToUpper(fmt.Sprintf("%v", count + 1))] = newChirp
@@ -298,6 +301,26 @@ func (db *DB) CreateChirp(body string) (Chirp, error) {
 	}
 
 	return newChirp, nil
+}
+
+func (db *DB) DeleteChirp(id string, userId int) error{
+	chirps, err := db.loadDB()
+	if err!=nil{
+		return err
+	}
+
+	if chirps.Chirps[id].UserId != userId{
+		return fmt.Errorf("User does not have permission to delete this chirp")
+	}
+
+	delete(chirps.Chirps,id)
+
+	if err:= db.writeDB(chirps); err!=nil{
+		return err
+	}
+
+	return nil
+	
 }
 
 func (db *DB) GetChirps() ([]Chirp, error) {

@@ -212,8 +212,7 @@ func (a *apiConfig) JWTLoginHandler() http.Handler {
 		}
 
 		refreshTokenString := hex.EncodeToString(refreshToken)
-		expirationTimeRefresh := currentTime.Add(24 * time.Hour * 60)
-		if err := a.Database.CreateToken(foundUser.Id, refreshTokenString, int(expirationTimeRefresh.Unix())); err != nil {
+		if err := a.Database.CreateToken(foundUser.Id, refreshTokenString); err != nil {
 			utils.RespondWithErr(w, 500, "Error generating refresh token")
 			return
 		}

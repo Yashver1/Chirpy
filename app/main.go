@@ -69,6 +69,7 @@ func main() {
 	mux.HandleFunc("PUT "+apiPath + "/users", apiConfig.UpdateUserHandler)
 	mux.Handle("POST " + apiPath + "/revoke", apiConfig.DeleteRefreshTokenHandler())
 	mux.Handle("POST " + apiPath + "/refresh", apiConfig.RefreshTokenHandler())
+	mux.Handle("DELETE "+apiPath+chirpPath+"/{chirpID}", apiConfig.DeleteChirpHandler())
 
 	server := &http.Server{
 		Addr:    ":" + port,

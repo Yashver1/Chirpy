@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode/utf8"
-	
+
+	"github.com/golang-jwt/jwt/v5"
+
 	"github.com/Yashver1/chirpy/internal/utils"
-	
 )
 
 
@@ -20,13 +22,42 @@ func (a *apiConfig) CreateChirpHandler() http.Handler {
 		var chirp utils.Chirp
 		database := a.Database
 
-		decoder := json.NewDecoder(req.Body)
-		err := decoder.Decode(&chirp)
-		if err != nil {
-			
-			utils.RespondWithErr(w, 500, "couldn't read request")
+		authHeader := req.Header.Get("Authorization")
+		if authHeader == ""{
+			utils.RespondWithErr(w,401,"Unauthorized")
 			return
 		}
+
+		authHeader = strings.TrimPrefix(authHeader,"Bearer ")
+		token, err := jwt.ParseWithClaims(authHeader,&jwt.RegisteredClaims{},func(token *jwt.Token) (interface{},error){
+			return []byte(a.JwtSecret),nil
+		})
+
+		if err!=nil{
+			utils.RespondWithErr(w,500,"Unable to parse JWT")
+			return
+		}
+
+		userId,err := token.Claims.GetSubject()
+		if err!=nil{
+			utils.RespondWithErr(w,500,"Server Error")
+			return
+		}
+
+		parsedId,err := strconv.Atoi(userId)
+		if err!=nil{
+			utils.RespondWithErr(w,500,"Server Error")
+			return
+		}
+
+		decoder := json.NewDecoder(req.Body)
+		if err := decoder.Decode(&chirp); err!=nil{
+			utils.RespondWithErr(w,500,"Unable to parse request")
+			return
+		}
+
+
+		
 
 		///validation///
 
@@ -46,7 +77,7 @@ func (a *apiConfig) CreateChirpHandler() http.Handler {
 		resp := strings.Join(jsonArray, " ")
 		///validationEnd///
 
-		createdChirp, err := database.CreateChirp(resp)
+		createdChirp, err := database.CreateChirp(resp,parsedId)
 		if err != nil {
 			utils.RespondWithErr(w, 500, "unable to create Chirp")
 			return
@@ -59,6 +90,7 @@ func (a *apiConfig) CreateChirpHandler() http.Handler {
 func (a *apiConfig) GetAllChirpsHandler() http.Handler {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
 		database := a.Database
 		chirps, err := database.GetChirps()
 		if err != nil {
@@ -77,6 +109,7 @@ func (a *apiConfig) GetAllChirpsHandler() http.Handler {
 
 func (a *apiConfig) GetChirpHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
 		database := a.Database
 		idString := r.PathValue("chirpID")
 		chirp, err := database.GetChirp(idString)
@@ -86,5 +119,51 @@ func (a *apiConfig) GetChirpHandler() http.Handler {
 		}
 
 		utils.RespondWithJSON(w, 200, chirp)
+	})
+}
+
+
+func (a *apiConfig) DeleteChirpHandler() http.Handler{
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request){
+		defer r.Body.Close()
+
+		idstring := r.PathValue("chirpID")
+
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == ""{
+			utils.RespondWithErr(w,401,"Unauthorized")
+			return
+		}
+
+		authHeader = strings.TrimPrefix(authHeader,"Bearer ")
+		token, err := jwt.ParseWithClaims(authHeader,&jwt.RegisteredClaims{},func(token *jwt.Token) (interface{},error){
+			return []byte(a.JwtSecret),nil
+		})
+
+		if err!=nil{
+			utils.RespondWithErr(w,500,"Unable to parse JWT")
+			return
+		}
+
+		userId,err := token.Claims.GetSubject()
+		if err!=nil{
+			utils.RespondWithErr(w,500,"Server Error")
+			return
+		}
+
+		parsedId,err := strconv.Atoi(userId)
+		
+		if err!=nil{
+			utils.RespondWithErr(w,500,"Server Error")
+			return
+		}
+
+		if err:= a.Database.DeleteChirp(idstring,parsedId); err!=nil{
+			utils.RespondWithErr(w,403,"Unauthorized")
+			return
+		}
+
+		utils.RespondWithJSON(w,204,"Chirp deleted successfully")
+
 	})
 }
